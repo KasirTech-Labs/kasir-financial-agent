@@ -21,12 +21,11 @@ class TrialBalanceProcessor:
             logging.error(f"حدث خطأ أثناء قراءة الملف: {e}")
             raise
 
-    def clean_and_normalize(self):
-        # 1. إزالة أي مسافات مخفية قبل أو بعد أسماء الأعمدة (مشكلة شائعة جداً)
-        self.df.columns = self.df.columns.str.strip()
+    def clean_and_normalize(self, df):
+        # 1. إزالة أي مسافات مخفية قبل أو بعد أسماء الأعمدة
+        df.columns = df.columns.str.strip()
         
         # 2. قاموس المرادفات (The Mapping Dictionary)
-        # توحيد كل المسميات المحاسبية الشائعة إلى المسميات القياسية التي يفهمها نظامنا
         column_mapping = {
             'مدين': 'المدين',
             'دائن': 'الدائن',
@@ -39,17 +38,17 @@ class TrialBalanceProcessor:
         }
         
         # تطبيق التوحيد على أسماء الأعمدة
-        self.df.rename(columns=column_mapping, inplace=True)
+        df.rename(columns=column_mapping, inplace=True)
 
-        # 3. تنظيف البيانات الرياضية (التأكد من أن المبالغ عبارة عن أرقام وليس نصوصاً)
-        if 'المدين' in self.df.columns:
-            self.df['المدين'] = pd.to_numeric(self.df['المدين'], errors='coerce').fillna(0)
+        # 3. تنظيف البيانات الرياضية
+        if 'المدين' in df.columns:
+            df['المدين'] = pd.to_numeric(df['المدين'], errors='coerce').fillna(0)
             
-        if 'الدائن' in self.df.columns:
-            self.df['الدائن'] = pd.to_numeric(self.df['الدائن'], errors='coerce').fillna(0)
+        if 'الدائن' in df.columns:
+            df['الدائن'] = pd.to_numeric(df['الدائن'], errors='coerce').fillna(0)
             
         # إرجاع البيانات النظيفة للمحرك
-        return self.df
+        return df
 
 if __name__ == "__main__":
     # قمنا بتحديث اسم الملف هنا ليقرأ الملف الفوضوي الذي صنعناه
