@@ -43,8 +43,10 @@ async def audit_trial_balance(file: UploadFile = File(...)):
 
         # 2. تشغيل مسار تنظيف البيانات (المرحلة 1)
         processor = TrialBalanceProcessor(TEMP_FILE_PATH)
-        processor.load_data()
-        clean_df = processor.clean_and_normalize()
+        
+        # نعدل الكود ليقوم باستلام البيانات من دالة التحميل وتمريرها فوراً لدالة التنظيف
+        raw_df = processor.load_data() 
+        clean_df = processor.clean_and_normalize(raw_df) # تمرير صريح للبيانات
 
         # 3. تشغيل محرك المطابقة (المرحلة 2)
         engine = ReconciliationEngine(clean_df)
