@@ -26,38 +26,62 @@ class TrialBalanceProcessor:
             raise
 
     def clean_and_normalize(self, df=None):
-        # 1. المرونة الهندسية: إذا مررنا df استخدمه، وإلا ابحث عن self.df
         target_df = df if df is not None else getattr(self, 'raw_data', None)
         
-        # 2. حماية النظام من الانهيار (Guard Clause)
         if target_df is None:
             raise ValueError("لم يتم تحميل البيانات! تأكد من استدعاء load_data() أولاً.")
             
-        # 3. إزالة المسافات المخفية
         target_df.columns = target_df.columns.str.strip()
         
-        # 4. قاموس المرادفات
         column_mapping = {
-            'مدين': 'المدين',
-            'دائن': 'الدائن',
-            'الرصيد المدين': 'المدين',
-            'الرصيد الدائن': 'الدائن',
-            'حساب': 'اسم الحساب',
-            'إسم الحساب': 'اسم الحساب',
-            'رقم': 'رقم الحساب',
-            'رقم حساب': 'رقم الحساب'
+            'مدين': 'المدين', 'دائن': 'الدائن',
+            'حساب': 'اسم الحساب', 'إسم الحساب': 'اسم الحساب',
+            'رقم': 'رقم الحساب', 'رقم حساب': 'رقم الحساب'
         }
-        
         target_df.rename(columns=column_mapping, inplace=True)
 
-        # 5. تنظيف البيانات الرياضية
+        # =================================================================
+        # 🚀 خوارزمية تصفية التداخل (Double Counting Filter)
+        # =================================================================
+        
+        # 1. إزالة صف الإجمالي من أسفل الملف لأنه يضاعف الأرقام
+        if 'اسم الحساب' in target_df.columns:
+            target_df = target_df[~target_df['اسم الحساب'].astype(str).str.contains('الإجمالي|اجمالي', na=False)]
+
+        # 2. استخراج الحسابات النهائية فقط (Leaf Nodes) باستخدام رقم الحساب
+        if 'رقم الحساب' in target_df.columns:
+            # إزالة الصفوف الفارغة (مثل عناوين: الأصول، الخصوم وحقوق الملكية)
+            target_df = target_df.dropna(subset=['رقم الحساب'])
+            target_df['رقم الحساب'] = target_df['رقم الحساب'].astype(str).str.strip()
+            
+            # استبعاد القيم التي قرأتها بايثون كـ 'nan' كنص
+            target_df = target_df[target_df['رقم الحساب'] != 'nan']
+
+            # استخراج جميع أرقام الحسابات الموجودة في الملف
+            all_accounts = target_df['رقم الحساب'].tolist()
+
+            # دالة داخلية تفحص ما إذا كان الحساب "نهائياً"
+            def is_leaf(acc):
+                for other in all_accounts:
+                    # إذا وجدنا حساباً آخر يبدأ بنفس هذا الرقم (وأطول منه)، إذن هذا الحساب تجميعي (أب)
+                    if other != acc and other.startswith(acc):
+                        return False 
+                return True # لا يوجد له أبناء، إذن هو حساب نهائي
+
+            # تطبيق الدالة السحرية لإبقاء الحسابات النهائية فقط
+            target_df['is_leaf'] = target_df['رقم الحساب'].apply(is_leaf)
+            target_df = target_df[target_df['is_leaf'] == True]
+            target_df = target_df.drop(columns=['is_leaf']) # تنظيف العمود المؤقت
+            
+        # =================================================================
+
+        # تنظيف البيانات الرياضية
         if 'المدين' in target_df.columns:
             target_df['المدين'] = pd.to_numeric(target_df['المدين'], errors='coerce').fillna(0)
             
         if 'الدائن' in target_df.columns:
             target_df['الدائن'] = pd.to_numeric(target_df['الدائن'], errors='coerce').fillna(0)
             
-        # 6. تحديث البيانات داخل الكلاس وإرجاعها
         self.df = target_df
         return target_df
 
