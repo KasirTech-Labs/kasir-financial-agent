@@ -22,40 +22,34 @@ class TrialBalanceProcessor:
             raise
 
     def clean_and_normalize(self):
-        logging.info("بدء عملية تنظيف البيانات...")
-        df = self.raw_data.copy()
+        # 1. إزالة أي مسافات مخفية قبل أو بعد أسماء الأعمدة (مشكلة شائعة جداً)
+        self.df.columns = self.df.columns.str.strip()
         
-        # 1. حذف الصفوف الفارغة بالكامل
-        df.dropna(how='all', inplace=True)
+        # 2. قاموس المرادفات (The Mapping Dictionary)
+        # توحيد كل المسميات المحاسبية الشائعة إلى المسميات القياسية التي يفهمها نظامنا
+        column_mapping = {
+            'مدين': 'المدين',
+            'دائن': 'الدائن',
+            'الرصيد المدين': 'المدين',
+            'الرصيد الدائن': 'الدائن',
+            'حساب': 'اسم الحساب',
+            'إسم الحساب': 'اسم الحساب',
+            'رقم': 'رقم الحساب',
+            'رقم حساب': 'رقم الحساب'
+        }
         
-        # 2. توحيد أسماء الأعمدة (إزالة المسافات المخفية)
-        df.columns = df.columns.str.strip()
-        
-        # 3. تنظيف الأعمدة المالية (المدين والدائن)
-        financial_columns = ['المدين', 'الدائن']
-        for col in financial_columns:
-            # تحويل كل شيء لنص مؤقتاً لتجنب أخطاء تضارب الأنواع
-            df[col] = df[col].astype(str)
-            
-            # إزالة المسافات من الأطراف
-            df[col] = df[col].str.strip()
-            
-            # تحويل الشرطة المحاسبية إلى صفر
-            df[col] = df[col].replace('-', '0')
-            
-            # إزالة أي نصوص أو فواصل (SAR, $, ,) وإبقاء الأرقام فقط
-            df[col] = df[col].replace(r'[^\d\.]', '', regex=True)
-            
-            # تحويل العمود إلى أرقام عشرية حقيقية
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            
-        # 4. إصلاح أرقام الحسابات (إزالة الأصفار العشرية مثل 1001.0)
-        df['رقم الحساب'] = pd.to_numeric(df['رقم الحساب'], errors='coerce').astype('Int64')
-        
-        self.clean_data = df
-        logging.info("اكتمل تنظيف البيانات بنجاح.")
-        return self.clean_data
+        # تطبيق التوحيد على أسماء الأعمدة
+        self.df.rename(columns=column_mapping, inplace=True)
 
+        # 3. تنظيف البيانات الرياضية (التأكد من أن المبالغ عبارة عن أرقام وليس نصوصاً)
+        if 'المدين' in self.df.columns:
+            self.df['المدين'] = pd.to_numeric(self.df['المدين'], errors='coerce').fillna(0)
+            
+        if 'الدائن' in self.df.columns:
+            self.df['الدائن'] = pd.to_numeric(self.df['الدائن'], errors='coerce').fillna(0)
+            
+        # إرجاع البيانات النظيفة للمحرك
+        return self.df
 
 if __name__ == "__main__":
     # قمنا بتحديث اسم الملف هنا ليقرأ الملف الفوضوي الذي صنعناه
