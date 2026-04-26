@@ -1,0 +1,9 @@
+pandas
+openpyxl
+python-dotenv
+tabulate
+langchain
+langchain-groq
+fastapi
+uvicorn
+python-multipart
